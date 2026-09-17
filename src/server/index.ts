@@ -27,10 +27,10 @@ export class PluginPasswordRecoveryServer extends Plugin {
     });
   }
 
-  // 自动确保物理数据表同步建立，并在 Collection Manager (collections & fields 表) 中自动注册
+  // 自动确保物理数据表同步建立，并在 Collection Manager (collections & fields 表) 中自动注册与字段自愈
   async ensureWorkflowCollection() {
     try {
-      // 1. 物理表强制同步：确保底层数据库（SQLite / MySQL / PostgreSQL）真实建立这 3 张物理表
+      // 1. 物理表强制同步：确保底层数据库（MySQL / PostgreSQL / SQLite）真实建立这 3 张物理表
       const collectionNames = [
         'password_recovery_requests',
         'password_recovery_records',
@@ -47,28 +47,56 @@ export class PluginPasswordRecoveryServer extends Plugin {
         }
       }
 
-      // 2. Collection Manager 自动注册 (db2cm 官方原生机制)
+      // 2. 检查 Collection Manager 中是否存在表以及现有字段数量
       const collectionsRepo = this.db.getRepository('collections') as any;
+      const fieldsRepo = this.db.getRepository('fields') as any;
+
       if (collectionsRepo) {
-        if (typeof collectionsRepo.db2cm === 'function') {
+        let existingCol = await collectionsRepo.findOne({
+          filter: { name: 'password_recovery_requests' },
+        });
+
+        let currentFieldsCount = 0;
+        if (fieldsRepo) {
+          try {
+            currentFieldsCount = (await fieldsRepo.count({
+              filter: { collectionName: 'password_recovery_requests' },
+            })) || 0;
+          } catch (cErr: any) {}
+        }
+
+        // 如果表存在但字段为 0（如旧版残留或 db2cm 未能写入字段），主动重置该集合元数据以便完整重构
+        if (existingCol && currentFieldsCount === 0) {
+          this.app.logger?.info?.(
+            `[PasswordRecovery] 检测到 'password_recovery_requests' 表存在但字段数为 0，重置元数据重新同步...`,
+          );
+          try {
+            await collectionsRepo.destroy({
+              filter: { name: 'password_recovery_requests' },
+            });
+            existingCol = null;
+          } catch (dErr: any) {}
+        }
+
+        // 优先使用官方 db2cm 进行标准关联同步（集合已声明完备的 interface 和 uiSchema）
+        if (!existingCol && typeof collectionsRepo.db2cm === 'function') {
           try {
             await collectionsRepo.db2cm('password_recovery_requests');
-            this.app.logger?.info?.(`[PasswordRecovery] db2cm 自动同步 'password_recovery_requests' 到 Collection Manager 成功`);
+            this.app.logger?.info?.(
+              `[PasswordRecovery] db2cm 自动同步 'password_recovery_requests' 到 Collection Manager 成功`,
+            );
           } catch (db2cmErr: any) {
             this.app.logger?.warn?.(`[PasswordRecovery] db2cm 自动同步提示: ${db2cmErr.message}`);
           }
         }
-      }
 
-      // 3. 元数据双重兜底：检查并补齐 collections 表和 fields 表中的定义与 UI Schema
-      const fieldsRepo = this.db.getRepository('fields');
-      if (collectionsRepo && fieldsRepo) {
-        const existing = await collectionsRepo.findOne({
+        // 重新获取或创建 collection 记录
+        existingCol = await collectionsRepo.findOne({
           filter: { name: 'password_recovery_requests' },
         });
 
-        if (!existing) {
-          await collectionsRepo.create({
+        if (!existingCol) {
+          existingCol = await collectionsRepo.create({
             values: {
               key: 'password_recovery_requests',
               name: 'password_recovery_requests',
@@ -89,58 +117,86 @@ export class PluginPasswordRecoveryServer extends Plugin {
           });
         }
 
-        const fieldList = [
-          { name: 'account', type: 'string', interface: 'input', title: '请求账号' },
-          { name: 'code', type: 'string', interface: 'input', title: '数字验证码' },
-          { name: 'userId', type: 'integer', interface: 'integer', title: '关联用户ID' },
-          { name: 'username', type: 'string', interface: 'input', title: '员工用户名' },
-          { name: 'email', type: 'string', interface: 'email', title: '企业邮箱' },
-          { name: 'phone', type: 'string', interface: 'phone', title: '手机号' },
-          { name: 'nickname', type: 'string', interface: 'input', title: '员工姓名' },
-          { name: 'status', type: 'string', interface: 'input', title: '请求状态' },
-          { name: 'expiresInMinutes', type: 'integer', interface: 'integer', title: '有效分钟数' },
-          { name: 'expiresAt', type: 'date', interface: 'datetime', title: '失效时间' },
-          { name: 'token', type: 'string', interface: 'input', title: '会话Token' },
-          { name: 'ip', type: 'string', interface: 'input', title: '客户端IP' },
-        ];
+        // 3. 字段级别强制核验与补齐（多重兜底保障）
+        if (fieldsRepo) {
+          const fieldList = [
+            { name: 'account', type: 'string', interface: 'input', title: '请求账号' },
+            { name: 'code', type: 'string', interface: 'input', title: '数字验证码' },
+            { name: 'userId', type: 'integer', interface: 'integer', title: '关联用户ID' },
+            { name: 'username', type: 'string', interface: 'input', title: '员工用户名' },
+            { name: 'email', type: 'string', interface: 'email', title: '企业邮箱' },
+            { name: 'phone', type: 'string', interface: 'phone', title: '手机号' },
+            { name: 'nickname', type: 'string', interface: 'input', title: '员工姓名' },
+            { name: 'status', type: 'string', interface: 'select', title: '请求状态' },
+            { name: 'expiresInMinutes', type: 'integer', interface: 'integer', title: '有效分钟数' },
+            { name: 'expiresAt', type: 'date', interface: 'datetime', title: '失效时间' },
+            { name: 'token', type: 'string', interface: 'input', title: '会话Token' },
+            { name: 'ip', type: 'string', interface: 'input', title: '客户端IP' },
+          ];
 
-        for (const f of fieldList) {
-          try {
-            const hasField = await fieldsRepo.findOne({
-              filter: {
-                collectionName: 'password_recovery_requests',
-                name: f.name,
-              },
-            });
-            if (!hasField) {
-              await fieldsRepo.create({
-                values: {
-                  key: `password_recovery_requests.${f.name}`,
-                  name: f.name,
-                  type: f.type,
-                  interface: f.interface,
+          let addedCount = 0;
+          for (let i = 0; i < fieldList.length; i++) {
+            const f = fieldList[i];
+            try {
+              const hasField = await fieldsRepo.findOne({
+                filter: {
                   collectionName: 'password_recovery_requests',
-                  options: {
-                    uiSchema: {
-                      type: f.type === 'integer' ? 'number' : f.type === 'date' ? 'datetime' : 'string',
-                      title: f.title,
-                      'x-component': f.type === 'integer' ? 'InputNumber' : f.type === 'date' ? 'DatePicker' : 'Input',
-                    },
-                  },
+                  name: f.name,
                 },
               });
-            }
-          } catch (errField: any) {
-            // 忽略字段重复或已存在错误
-          }
-        }
 
-        this.app.logger?.info?.(
-          `[PasswordRecovery] 成功确保 'password_recovery_requests'（密码找回请求）表及元数据就绪。`,
-        );
+              if (!hasField) {
+                const randomKey = `prr_${f.name}_${Math.random().toString(36).substring(2, 9)}`;
+                await fieldsRepo.create({
+                  values: {
+                    key: randomKey,
+                    name: f.name,
+                    type: f.type,
+                    interface: f.interface,
+                    collectionName: 'password_recovery_requests',
+                    sort: i + 1,
+                    options: {
+                      uiSchema: {
+                        type: f.type === 'integer' ? 'number' : f.type === 'date' ? 'datetime' : 'string',
+                        title: f.title,
+                        'x-component':
+                          f.type === 'integer'
+                            ? 'InputNumber'
+                            : f.type === 'date'
+                              ? 'DatePicker'
+                              : f.name === 'status'
+                                ? 'Select'
+                                : 'Input',
+                      },
+                    },
+                  },
+                });
+                addedCount++;
+              } else if (!hasField.interface && f.interface) {
+                // 如果旧记录缺失 interface，予以无损补齐
+                await fieldsRepo.update({
+                  filter: { key: hasField.key },
+                  values: { interface: f.interface },
+                });
+              }
+            } catch (errField: any) {
+              this.app.logger?.warn?.(
+                `[PasswordRecovery] 注册字段 ${f.name} 提示: ${errField.message}`,
+              );
+            }
+          }
+
+          const finalCount = await fieldsRepo.count({
+            filter: { collectionName: 'password_recovery_requests' },
+          });
+
+          this.app.logger?.info?.(
+            `[PasswordRecovery] 成功确保 'password_recovery_requests' 表就绪，当前 Collection Manager 注册字段数: ${finalCount} (本次补齐: ${addedCount})`,
+          );
+        }
       }
     } catch (err: any) {
-      this.app.logger?.warn?.(`[PasswordRecovery] 表初始化与自愈异常: ${err.message}`);
+      this.app.logger?.error?.(`[PasswordRecovery] 表初始化与字段自愈异常: ${err.message}`);
     }
   }
 
@@ -250,16 +306,16 @@ export class PluginPasswordRecoveryServer extends Plugin {
           const colRepo = ctx.db.getRepository('collections');
           const fieldsRepo = ctx.db.getRepository('fields');
           const col = await colRepo.findOne({ filter: { name: 'password_recovery_requests' } });
-          const count = await fieldsRepo.count({ filter: { collectionName: 'password_recovery_requests' } });
+          const count = (await fieldsRepo?.count?.({ filter: { collectionName: 'password_recovery_requests' } })) || 0;
 
           ctx.body = {
             success: true,
-            message: '插件数据库表创建/同步成功',
+            message: `插件数据库表与 ${count} 个字段已成功就绪！`,
             collection: {
               name: 'password_recovery_requests',
               title: col?.title || '密码找回请求',
               fieldsCount: count,
-              ready: !!col,
+              ready: !!col && count > 0,
             },
           };
           await next();
@@ -273,13 +329,13 @@ export class PluginPasswordRecoveryServer extends Plugin {
           let count = 0;
           try {
             col = await colRepo.findOne({ filter: { name: 'password_recovery_requests' } });
-            count = await fieldsRepo.count({ filter: { collectionName: 'password_recovery_requests' } });
+            count = (await fieldsRepo?.count?.({ filter: { collectionName: 'password_recovery_requests' } })) || 0;
           } catch (e) {}
 
           ctx.body = {
             name: 'password_recovery_requests',
             title: col?.title || '密码找回请求',
-            ready: !!col,
+            ready: !!col && count > 0,
             fieldsCount: count,
           };
           await next();

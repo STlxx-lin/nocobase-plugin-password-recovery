@@ -11,6 +11,7 @@ export default defineCollection({
     {
       type: 'string',
       name: 'account',
+      interface: 'input',
       comment: '请求密码找回时填写的账号',
       uiSchema: {
         type: 'string',
@@ -21,6 +22,7 @@ export default defineCollection({
     {
       type: 'string',
       name: 'code',
+      interface: 'input',
       length: 16,
       comment: '一次性动态验证码',
       uiSchema: {
@@ -32,6 +34,7 @@ export default defineCollection({
     {
       type: 'integer',
       name: 'userId',
+      interface: 'integer',
       comment: '关联的用户系统ID',
       uiSchema: {
         type: 'number',
@@ -42,6 +45,7 @@ export default defineCollection({
     {
       type: 'string',
       name: 'username',
+      interface: 'input',
       comment: '员工用户名',
       uiSchema: {
         type: 'string',
@@ -52,6 +56,7 @@ export default defineCollection({
     {
       type: 'string',
       name: 'email',
+      interface: 'email',
       comment: '员工企业邮箱',
       uiSchema: {
         type: 'string',
@@ -62,6 +67,7 @@ export default defineCollection({
     {
       type: 'string',
       name: 'phone',
+      interface: 'phone',
       comment: '员工手机号',
       uiSchema: {
         type: 'string',
@@ -72,6 +78,7 @@ export default defineCollection({
     {
       type: 'string',
       name: 'nickname',
+      interface: 'input',
       comment: '员工姓名/昵称',
       uiSchema: {
         type: 'string',
@@ -82,17 +89,25 @@ export default defineCollection({
     {
       type: 'string',
       name: 'status',
+      interface: 'select',
       defaultValue: 'pending',
       comment: '状态: pending(待核验), verified(已核验通过), used(已重置密码), expired(已失效)',
       uiSchema: {
         type: 'string',
         title: '请求状态',
         'x-component': 'Select',
+        enum: [
+          { label: '待核验', value: 'pending' },
+          { label: '已重置', value: 'used' },
+          { label: '已过期', value: 'expired' },
+          { label: '模拟测试', value: 'test' },
+        ],
       },
     },
     {
       type: 'integer',
       name: 'expiresInMinutes',
+      interface: 'integer',
       defaultValue: 5,
       comment: '验证码有效时间（分钟）',
       uiSchema: {
@@ -104,6 +119,7 @@ export default defineCollection({
     {
       type: 'date',
       name: 'expiresAt',
+      interface: 'datetime',
       comment: '验证码失效时间',
       uiSchema: {
         type: 'datetime',
@@ -114,6 +130,7 @@ export default defineCollection({
     {
       type: 'string',
       name: 'token',
+      interface: 'input',
       unique: true,
       length: 128,
       comment: '本次密码找回的会话唯一凭证',
@@ -126,6 +143,7 @@ export default defineCollection({
     {
       type: 'string',
       name: 'ip',
+      interface: 'input',
       length: 64,
       comment: '发起请求的客户端IP',
       uiSchema: {

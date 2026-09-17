@@ -4,7 +4,7 @@
   "displayName.zh-CN": "企业密码找回与工作流联动",
   "description": "Enterprise self-service password recovery with custom workflow trigger, verification code security, and new/old password comparison.",
   "description.zh-CN": "企业内部员工密码自助找回插件：支持登录页入口注入、账号核验、触发自定义工作流发送验证码、安全校验与新旧密码一致性比对重置。",
-  "version": "0.1.0-beta.2",
+  "version": "0.1.0-beta.3",
   "main": "server.js",
   "client": "client.js",
   "client-v2": "client-v2.js",
