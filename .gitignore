@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+lib/
+coverage/
+
+# Test runtime artifacts
+storage/
+
+# Temporary files & logs
+*.log
+.env
+
+# IDE & System
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.trae
+.mimosa
+.agent/
+.agents/
