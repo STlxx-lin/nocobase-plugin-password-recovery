@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plugin } from '@nocobase/client';
 import { PasswordRecoveryModal } from './components/PasswordRecoveryModal';
 import { StandaloneRecoveryPage } from './pages/StandaloneRecoveryPage';
+import { PasswordRecoverySettings } from './pages/PasswordRecoverySettings';
 
 // 全局找回密码 Context / 状态管理器与 DOM 智能挂载组件
 const GlobalPasswordRecoveryProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -177,7 +178,53 @@ export class PluginPasswordRecoveryClient extends Plugin {
     this.app.addComponents({
       PasswordRecoveryModal,
       StandaloneRecoveryPage,
+      PasswordRecoverySettings,
     });
+
+    // 4. 注册 V1 经典版系统设置中心管理菜单与设置页
+    const manager = this.app?.pluginSettingsManager as any;
+    if (manager) {
+      const title = '企业密码找回';
+      const icon = 'SafetyCertificateOutlined';
+      const menuKey = 'password-recovery';
+      const pageName = `${menuKey}.index`;
+
+      if (typeof manager.addMenuItem === 'function' && typeof manager.addPageTabItem === 'function') {
+        manager.addMenuItem({
+          key: menuKey,
+          title,
+          icon,
+          aclSnippet: 'pm',
+        });
+
+        manager.addPageTabItem({
+          menuKey,
+          key: 'index',
+          title: '密码找回设置',
+          icon,
+          aclSnippet: 'pm',
+          Component: PasswordRecoverySettings,
+        });
+
+        const pluginNames = [
+          this.options?.name,
+          this.options?.packageName,
+          'password-recovery',
+          '@nocobase/plugin-password-recovery',
+        ].filter(Boolean);
+
+        [...new Set(pluginNames)].forEach((pName) => {
+          manager.setPluginSettingsLink?.(pName, pageName);
+        });
+      } else if (typeof manager.add === 'function') {
+        manager.add(menuKey, {
+          title,
+          icon,
+          aclSnippet: 'pm',
+          Component: PasswordRecoverySettings,
+        });
+      }
+    }
   }
 }
 

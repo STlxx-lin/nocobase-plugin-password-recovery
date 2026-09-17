@@ -27,41 +27,68 @@ export class PluginPasswordRecoveryServer extends Plugin {
     });
   }
 
-  // 自动确保在 Collection Manager (collections & fields 表) 中注册该业务表，以便工作流可以可视化绑定
-  private async ensureWorkflowCollection() {
+  // 自动确保物理数据表同步建立，并在 Collection Manager (collections & fields 表) 中自动注册
+  async ensureWorkflowCollection() {
     try {
-      const collectionsRepo = this.db.getRepository('collections');
+      // 1. 物理表强制同步：确保底层数据库（SQLite / MySQL / PostgreSQL）真实建立这 3 张物理表
+      const collectionNames = [
+        'password_recovery_requests',
+        'password_recovery_records',
+        'password_recovery_configs',
+      ];
+      for (const name of collectionNames) {
+        try {
+          const col = this.db.getCollection(name);
+          if (col) {
+            await col.sync({ alter: { drop: false } });
+          }
+        } catch (syncErr: any) {
+          this.app.logger?.warn?.(`[PasswordRecovery] 同步物理表 ${name} 提示: ${syncErr.message}`);
+        }
+      }
+
+      // 2. Collection Manager 自动注册 (db2cm 官方原生机制)
+      const collectionsRepo = this.db.getRepository('collections') as any;
+      if (collectionsRepo) {
+        if (typeof collectionsRepo.db2cm === 'function') {
+          try {
+            await collectionsRepo.db2cm('password_recovery_requests');
+            this.app.logger?.info?.(`[PasswordRecovery] db2cm 自动同步 'password_recovery_requests' 到 Collection Manager 成功`);
+          } catch (db2cmErr: any) {
+            this.app.logger?.warn?.(`[PasswordRecovery] db2cm 自动同步提示: ${db2cmErr.message}`);
+          }
+        }
+      }
+
+      // 3. 元数据双重兜底：检查并补齐 collections 表和 fields 表中的定义与 UI Schema
       const fieldsRepo = this.db.getRepository('fields');
-
-      if (!collectionsRepo || !fieldsRepo) return;
-
-      const existing = await collectionsRepo.findOne({
-        filter: { name: 'password_recovery_requests' },
-      });
-
-      if (!existing) {
-        // 1. 在 collections 元数据表中注册表
-        await collectionsRepo.create({
-          values: {
-            key: 'password_recovery_requests',
-            name: 'password_recovery_requests',
-            title: '密码找回请求',
-            inherit: 0,
-            hidden: 0,
-            options: {
-              origin: '@nocobase/plugin-password-recovery',
-              autoGenId: true,
-              titleField: 'account',
-              logging: true,
-              createdAt: true,
-              updatedAt: true,
-              createdBy: false,
-              updatedBy: false,
-            },
-          },
+      if (collectionsRepo && fieldsRepo) {
+        const existing = await collectionsRepo.findOne({
+          filter: { name: 'password_recovery_requests' },
         });
 
-        // 2. 注册字段元数据列表
+        if (!existing) {
+          await collectionsRepo.create({
+            values: {
+              key: 'password_recovery_requests',
+              name: 'password_recovery_requests',
+              title: '密码找回请求',
+              inherit: 0,
+              hidden: 0,
+              options: {
+                origin: '@nocobase/plugin-password-recovery',
+                autoGenId: true,
+                titleField: 'account',
+                logging: true,
+                createdAt: true,
+                updatedAt: true,
+                createdBy: false,
+                updatedBy: false,
+              },
+            },
+          });
+        }
+
         const fieldList = [
           { name: 'account', type: 'string', interface: 'input', title: '请求账号' },
           { name: 'code', type: 'string', interface: 'input', title: '数字验证码' },
@@ -79,37 +106,47 @@ export class PluginPasswordRecoveryServer extends Plugin {
 
         for (const f of fieldList) {
           try {
-            await fieldsRepo.create({
-              values: {
-                key: `password_recovery_requests.${f.name}`,
-                name: f.name,
-                type: f.type,
-                interface: f.interface,
+            const hasField = await fieldsRepo.findOne({
+              filter: {
                 collectionName: 'password_recovery_requests',
-                options: {
-                  uiSchema: {
-                    type: f.type === 'integer' ? 'number' : f.type === 'date' ? 'datetime' : 'string',
-                    title: f.title,
-                    'x-component': f.type === 'integer' ? 'InputNumber' : f.type === 'date' ? 'DatePicker' : 'Input',
-                  },
-                },
+                name: f.name,
               },
             });
+            if (!hasField) {
+              await fieldsRepo.create({
+                values: {
+                  key: `password_recovery_requests.${f.name}`,
+                  name: f.name,
+                  type: f.type,
+                  interface: f.interface,
+                  collectionName: 'password_recovery_requests',
+                  options: {
+                    uiSchema: {
+                      type: f.type === 'integer' ? 'number' : f.type === 'date' ? 'datetime' : 'string',
+                      title: f.title,
+                      'x-component': f.type === 'integer' ? 'InputNumber' : f.type === 'date' ? 'DatePicker' : 'Input',
+                    },
+                  },
+                },
+              });
+            }
           } catch (errField: any) {
-            // 忽略重复字段
+            // 忽略字段重复或已存在错误
           }
         }
 
         this.app.logger?.info?.(
-          `[PasswordRecovery] 成功在数据表管理器中自动创建并注册 'password_recovery_requests'（密码找回请求）表。`,
+          `[PasswordRecovery] 成功确保 'password_recovery_requests'（密码找回请求）表及元数据就绪。`,
         );
       }
     } catch (err: any) {
-      this.app.logger?.warn?.(`[PasswordRecovery] 自动注册数据表异常: ${err.message}`);
+      this.app.logger?.warn?.(`[PasswordRecovery] 表初始化与自愈异常: ${err.message}`);
     }
   }
 
   async install() {
+    await this.ensureWorkflowCollection();
+
     try {
       const repo = this.db.getRepository('password_recovery_configs');
       if (repo) {
@@ -121,14 +158,9 @@ export class PluginPasswordRecoveryServer extends Plugin {
     } catch (err: any) {
       this.app.logger?.warn?.(`[PasswordRecovery] Failed to seed default configuration: ${err.message}`);
     }
-
-    await this.ensureWorkflowCollection();
   }
 
   async load() {
-    // 自动确保表已注册到 Collection Manager
-    await this.ensureWorkflowCollection();
-
     // 注册 passwordRecovery REST 资源及其操作
     this.app.resource({
       name: 'passwordRecovery',
@@ -384,7 +416,9 @@ export class PluginPasswordRecoveryServer extends Plugin {
   }
 
   async afterEnable() {
-    // 启用或启动后立即运行一次历史数据清理
+    // 每次启用插件时，确保底层物理表和 Collection Manager 元数据完全就绪
+    await this.ensureWorkflowCollection();
+    // 立即运行一次历史数据清理
     await this.cleanupExpiredRecords();
     // 建立 12 小时间隔定时调度清理
     this.cleanupTimer = setInterval(() => {
