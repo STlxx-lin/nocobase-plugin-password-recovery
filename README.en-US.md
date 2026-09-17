@@ -18,11 +18,32 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/NocoBase-2.x%20Supported-blue?style=flat-square" alt="NocoBase 2.x" />
-  <img src="https://img.shields.io/badge/Version-0.1.0--beta.1-green?style=flat-square" alt="Version" />
+  <img src="https://img.shields.io/badge/Version-0.1.0--beta.4-green?style=flat-square" alt="Version" />
   <img src="https://img.shields.io/badge/License-AGPL--3.0-orange?style=flat-square" alt="License" />
   <img src="https://img.shields.io/badge/TypeScript-Ready-3178c6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript" />
   <img src="https://img.shields.io/badge/i18n-zh--CN%20%7C%20en--US-brightgreen?style=flat-square" alt="i18n" />
 </p>
+
+---
+
+## 📸 Production Screenshots
+
+<div align="center">
+  <table border="0">
+    <tr>
+      <td align="center" valign="top" width="50%">
+        <img src="./docs/images/password-recovery-modal.png" alt="Password Recovery Dialog" width="360" />
+        <br />
+        <strong>Figure 1: Self-service recovery wizard (2-step guided flow · Masked account · Real-time strength meter)</strong>
+      </td>
+      <td align="center" valign="top" width="50%">
+        <img src="./docs/images/workflow-notification-code.png" alt="Workflow Notification Card" width="360" />
+        <br />
+        <strong>Figure 2: Workflow automated dispatch (Instant OTP delivery via Enterprise channels)</strong>
+      </td>
+    </tr>
+  </table>
+</div>
 
 ---
 

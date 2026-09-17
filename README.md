@@ -18,11 +18,32 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/NocoBase-2.x%20Supported-blue?style=flat-square" alt="NocoBase 2.x" />
-  <img src="https://img.shields.io/badge/Version-0.1.0--beta.1-green?style=flat-square" alt="Version" />
+  <img src="https://img.shields.io/badge/Version-0.1.0--beta.4-green?style=flat-square" alt="Version" />
   <img src="https://img.shields.io/badge/License-AGPL--3.0-orange?style=flat-square" alt="License" />
   <img src="https://img.shields.io/badge/TypeScript-Ready-3178c6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript" />
   <img src="https://img.shields.io/badge/i18n-zh--CN%20%7C%20en--US-brightgreen?style=flat-square" alt="i18n" />
 </p>
+
+---
+
+## 📸 实机运行预览 (Screenshots)
+
+<div align="center">
+  <table border="0">
+    <tr>
+      <td align="center" valign="top" width="50%">
+        <img src="./docs/images/password-recovery-modal.png" alt="密码找回 / 重置密码向导" width="360" />
+        <br />
+        <strong>图 1：前台密码找回向导（两步引导 · 账号脱敏 · 实时强度校验）</strong>
+      </td>
+      <td align="center" valign="top" width="50%">
+        <img src="./docs/images/workflow-notification-code.png" alt="工作流验证码通知推送" width="360" />
+        <br />
+        <strong>图 2：工作流自动化触达（企微/钉钉/站内通知即时送达动态验证码）</strong>
+      </td>
+    </tr>
+  </table>
+</div>
 
 ---
 
