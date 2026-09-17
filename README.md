@@ -13,6 +13,10 @@
 </p>
 
 <p align="center">
+  <a href="./README.md">简体中文</a> | <a href="./README.en-US.md">English</a>
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/badge/NocoBase-2.x%20Supported-blue?style=flat-square" alt="NocoBase 2.x" />
   <img src="https://img.shields.io/badge/Version-0.1.0--beta.1-green?style=flat-square" alt="Version" />
   <img src="https://img.shields.io/badge/License-AGPL--3.0-orange?style=flat-square" alt="License" />
