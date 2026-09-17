@@ -40,5 +40,18 @@
     "react": ">=18.0.0",
     "react-dom": ">=18.0.0"
   },
-  "license": "AGPL-3.0"
+  "license": "AGPL-3.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/STlxx-lin/nocobase-plugin-password-recovery.git"
+  },
+  "homepage": "https://github.com/STlxx-lin/nocobase-plugin-password-recovery#readme",
+  "keywords": [
+    "nocobase",
+    "nocobase-plugin",
+    "password-recovery",
+    "workflow",
+    "enterprise-security",
+    "authentication"
+  ]
 }
