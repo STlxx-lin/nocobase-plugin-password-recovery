@@ -26,20 +26,31 @@
 
 ---
 
-## 📸 实机运行预览 (Screenshots)
+## 📸 全流程实机运行预览 (Production Screenshots)
 
 <div align="center">
   <table border="0">
     <tr>
-      <td align="center" valign="top" width="50%">
-        <img src="./docs/images/password-recovery-modal.png" alt="密码找回 / 重置密码向导" width="360" />
+      <td align="center" valign="top" width="33.3%">
+        <img src="./docs/images/password-recovery-modal.png" alt="密码找回向导" width="280" />
         <br />
-        <strong>图 1：前台密码找回向导（两步引导 · 账号脱敏 · 实时强度校验）</strong>
+        <strong>1. 登录页密码找回向导</strong>
+        <br />
+        <span style="font-size:12px; color:#666;">两步式向导 · 账号脱敏 · 实时强度检测</span>
       </td>
-      <td align="center" valign="top" width="50%">
-        <img src="./docs/images/workflow-notification-code.png" alt="工作流验证码通知推送" width="360" />
+      <td align="center" valign="top" width="33.3%">
+        <img src="./docs/images/workflow-configuration-canvas.png" alt="工作流事件编排" width="280" />
         <br />
-        <strong>图 2：工作流自动化触达（企微/钉钉/站内通知即时送达动态验证码）</strong>
+        <strong>2. 工作流事件编排画布</strong>
+        <br />
+        <span style="font-size:12px; color:#666;">数据表事件驱动 · 密码找回请求 · 自动化通知</span>
+      </td>
+      <td align="center" valign="top" width="33.3%">
+        <img src="./docs/images/workflow-notification-code.png" alt="验证码通知卡片" width="280" />
+        <br />
+        <strong>3. 多通道验证码即时送达</strong>
+        <br />
+        <span style="font-size:12px; color:#666;">企业微信 / 钉钉 / 邮件 / 站内通知秒级触达</span>
       </td>
     </tr>
   </table>
@@ -152,6 +163,14 @@ yarn nocobase pm enable @nocobase/plugin-password-recovery
 - **触发器类型**：选择 **“数据表事件”**
 - **数据表**：选择 **“密码找回请求 (password_recovery_requests)”**
 - **触发时机**：选择 **“创建数据后”**
+
+<div align="center">
+  <img src="./docs/images/workflow-configuration-canvas.png" alt="工作流配置实机画布" width="480" style="border: 1px solid #e2e8f0; border-radius: 8px; margin: 12px 0;" />
+  <br />
+  <span style="font-size:12px; color:#666;">（工作流画布：数据表事件监听 -> 新增数据 / 消息通知节点 -> 结束）</span>
+</div>
+
+> **💡 说明**：如图所示，当员工在前台发起找回密码时，插件会自动向 `password_recovery_requests` 表创建一条包含动态验证码的安全记录。工作流监听到“创建数据后”事件，立即流转至下游节点（可配置为“发送通知”、“发送邮件”或“新增数据”生成待办消息卡片），完成验证码触达。
 
 ### 第二步：可用变量映射对照表
 

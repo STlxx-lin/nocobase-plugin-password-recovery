@@ -31,15 +31,26 @@
 <div align="center">
   <table border="0">
     <tr>
-      <td align="center" valign="top" width="50%">
-        <img src="./docs/images/password-recovery-modal.png" alt="Password Recovery Dialog" width="360" />
+      <td align="center" valign="top" width="33.3%">
+        <img src="./docs/images/password-recovery-modal.png" alt="Password Recovery Wizard" width="280" />
         <br />
-        <strong>Figure 1: Self-service recovery wizard (2-step guided flow · Masked account · Real-time strength meter)</strong>
+        <strong>1. Password Recovery Wizard</strong>
+        <br />
+        <span style="font-size:12px; color:#666;">2-Step Flow · Account Masking · Real-time Strength Meter</span>
       </td>
-      <td align="center" valign="top" width="50%">
-        <img src="./docs/images/workflow-notification-code.png" alt="Workflow Notification Card" width="360" />
+      <td align="center" valign="top" width="33.3%">
+        <img src="./docs/images/workflow-configuration-canvas.png" alt="Workflow Canvas" width="280" />
         <br />
-        <strong>Figure 2: Workflow automated dispatch (Instant OTP delivery via Enterprise channels)</strong>
+        <strong>2. Event-Driven Workflow Canvas</strong>
+        <br />
+        <span style="font-size:12px; color:#666;">Collection Event · password_recovery_requests · Auto Dispatch</span>
+      </td>
+      <td align="center" valign="top" width="33.3%">
+        <img src="./docs/images/workflow-notification-code.png" alt="OTP Notification Card" width="280" />
+        <br />
+        <strong>3. Multi-Channel Instant Delivery</strong>
+        <br />
+        <span style="font-size:12px; color:#666;">WeChat Work / DingTalk / Email / In-App Notification</span>
       </td>
     </tr>
   </table>
@@ -152,6 +163,14 @@ Navigate to NocoBase **Workflow**:
 - **Trigger Type**: Select **"Collection Event"**
 - **Collection**: Select **"Password Recovery Requests (password_recovery_requests)"**
 - **Trigger Condition**: Select **"After record added"**
+
+<div align="center">
+  <img src="./docs/images/workflow-configuration-canvas.png" alt="Workflow Configuration Canvas" width="480" style="border: 1px solid #e2e8f0; border-radius: 8px; margin: 12px 0;" />
+  <br />
+  <span style="font-size:12px; color:#666;">(Production Canvas: Collection Event Trigger -> Create Record / Notification Node -> End)</span>
+</div>
+
+> **💡 Note**: As illustrated above, when an employee requests password recovery on the login screen, the plugin automatically creates a secure record containing the dynamic verification code in the `password_recovery_requests` collection. The workflow detects the "After record added" event and immediately routes to downstream nodes (such as sending notifications, emails, or creating in-app message cards) to deliver the code.
 
 ### Step 2: Available Variables Reference
 
