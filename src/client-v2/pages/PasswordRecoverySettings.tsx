@@ -55,8 +55,8 @@ export default function PasswordRecoverySettings() {
   }>({
     name: 'password_recovery_requests',
     title: '密码找回请求',
-    ready: true,
-    fieldsCount: 12,
+    ready: false,
+    fieldsCount: 0,
   });
 
   // 审计日志状态
@@ -78,11 +78,12 @@ export default function PasswordRecoverySettings() {
         });
         const data = res?.data?.data || res?.data;
         if (data) {
+          const fieldsCount = typeof data.fieldsCount === 'number' ? data.fieldsCount : (parseInt(data.fieldsCount, 10) || 0);
           setTableStatus({
             name: data.name || 'password_recovery_requests',
             title: data.title || '密码找回请求',
-            ready: !!data.ready,
-            fieldsCount: Number(data.fieldsCount) || 12,
+            ready: Boolean(data.ready && fieldsCount > 0),
+            fieldsCount,
           });
         }
       }
@@ -356,7 +357,9 @@ export default function PasswordRecoverySettings() {
                                 已就绪 ({tableStatus.fieldsCount} 个字段)
                               </Tag>
                             ) : (
-                              <Tag color="warning">待初始化</Tag>
+                              <Tag color="warning">
+                                {tableStatus.fieldsCount === 0 ? '待初始化 (字段数为0，请点击右侧同步)' : '待初始化'}
+                              </Tag>
                             )}
                           </div>
                           <Paragraph type="secondary" style={{ margin: 0, fontSize: 13, lineHeight: 1.6 }}>

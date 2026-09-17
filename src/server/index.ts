@@ -47,154 +47,236 @@ export class PluginPasswordRecoveryServer extends Plugin {
         }
       }
 
-      // 2. 检查 Collection Manager 中是否存在表以及现有字段数量
-      const collectionsRepo = this.db.getRepository('collections') as any;
-      const fieldsRepo = this.db.getRepository('fields') as any;
+        // 2. 检查 Collection Manager 中是否存在表以及现有字段数量
+        const collectionsRepo = this.db.getRepository('collections') as any;
+        const fieldsRepo = this.db.getRepository('fields') as any;
 
-      if (collectionsRepo) {
-        let existingCol = await collectionsRepo.findOne({
-          filter: { name: 'password_recovery_requests' },
-        });
-
-        let currentFieldsCount = 0;
-        if (fieldsRepo) {
-          try {
-            currentFieldsCount = (await fieldsRepo.count({
-              filter: { collectionName: 'password_recovery_requests' },
-            })) || 0;
-          } catch (cErr: any) {}
-        }
-
-        // 如果表存在但字段为 0（如旧版残留或 db2cm 未能写入字段），主动重置该集合元数据以便完整重构
-        if (existingCol && currentFieldsCount === 0) {
-          this.app.logger?.info?.(
-            `[PasswordRecovery] 检测到 'password_recovery_requests' 表存在但字段数为 0，重置元数据重新同步...`,
-          );
-          try {
-            await collectionsRepo.destroy({
-              filter: { name: 'password_recovery_requests' },
-            });
-            existingCol = null;
-          } catch (dErr: any) {}
-        }
-
-        // 优先使用官方 db2cm 进行标准关联同步（集合已声明完备的 interface 和 uiSchema）
-        if (!existingCol && typeof collectionsRepo.db2cm === 'function') {
-          try {
-            await collectionsRepo.db2cm('password_recovery_requests');
-            this.app.logger?.info?.(
-              `[PasswordRecovery] db2cm 自动同步 'password_recovery_requests' 到 Collection Manager 成功`,
-            );
-          } catch (db2cmErr: any) {
-            this.app.logger?.warn?.(`[PasswordRecovery] db2cm 自动同步提示: ${db2cmErr.message}`);
-          }
-        }
-
-        // 重新获取或创建 collection 记录
-        existingCol = await collectionsRepo.findOne({
-          filter: { name: 'password_recovery_requests' },
-        });
-
-        if (!existingCol) {
-          existingCol = await collectionsRepo.create({
-            values: {
-              key: 'password_recovery_requests',
-              name: 'password_recovery_requests',
-              title: '密码找回请求',
-              inherit: 0,
-              hidden: 0,
-              options: {
-                origin: '@nocobase/plugin-password-recovery',
-                autoGenId: true,
-                titleField: 'account',
-                logging: true,
-                createdAt: true,
-                updatedAt: true,
-                createdBy: false,
-                updatedBy: false,
-              },
-            },
+        if (collectionsRepo) {
+          let existingCol = await collectionsRepo.findOne({
+            filter: { name: 'password_recovery_requests' },
           });
-        }
 
-        // 3. 字段级别强制核验与补齐（多重兜底保障）
-        if (fieldsRepo) {
-          const fieldList = [
-            { name: 'account', type: 'string', interface: 'input', title: '请求账号' },
-            { name: 'code', type: 'string', interface: 'input', title: '数字验证码' },
-            { name: 'userId', type: 'integer', interface: 'integer', title: '关联用户ID' },
-            { name: 'username', type: 'string', interface: 'input', title: '员工用户名' },
-            { name: 'email', type: 'string', interface: 'email', title: '企业邮箱' },
-            { name: 'phone', type: 'string', interface: 'phone', title: '手机号' },
-            { name: 'nickname', type: 'string', interface: 'input', title: '员工姓名' },
-            { name: 'status', type: 'string', interface: 'select', title: '请求状态' },
-            { name: 'expiresInMinutes', type: 'integer', interface: 'integer', title: '有效分钟数' },
-            { name: 'expiresAt', type: 'date', interface: 'datetime', title: '失效时间' },
-            { name: 'token', type: 'string', interface: 'input', title: '会话Token' },
-            { name: 'ip', type: 'string', interface: 'input', title: '客户端IP' },
-          ];
-
-          let addedCount = 0;
-          for (let i = 0; i < fieldList.length; i++) {
-            const f = fieldList[i];
+          // 如果旧表 options 中残留了 uiManageable: true，主动更新为 false，彻底消除 "Cannot remove a UI manageable collection" 异常
+          if (existingCol?.options?.uiManageable) {
             try {
-              const hasField = await fieldsRepo.findOne({
-                filter: {
-                  collectionName: 'password_recovery_requests',
-                  name: f.name,
-                },
+              const currentOptions = { ...(existingCol.options || {}), uiManageable: false };
+              await collectionsRepo.update({
+                filter: { name: 'password_recovery_requests' },
+                values: { options: currentOptions },
               });
-
-              if (!hasField) {
-                const randomKey = `prr_${f.name}_${Math.random().toString(36).substring(2, 9)}`;
-                await fieldsRepo.create({
-                  values: {
-                    key: randomKey,
-                    name: f.name,
-                    type: f.type,
-                    interface: f.interface,
-                    collectionName: 'password_recovery_requests',
-                    sort: i + 1,
-                    options: {
-                      uiSchema: {
-                        type: f.type === 'integer' ? 'number' : f.type === 'date' ? 'datetime' : 'string',
-                        title: f.title,
-                        'x-component':
-                          f.type === 'integer'
-                            ? 'InputNumber'
-                            : f.type === 'date'
-                              ? 'DatePicker'
-                              : f.name === 'status'
-                                ? 'Select'
-                                : 'Input',
-                      },
-                    },
-                  },
-                });
-                addedCount++;
-              } else if (!hasField.interface && f.interface) {
-                // 如果旧记录缺失 interface，予以无损补齐
-                await fieldsRepo.update({
-                  filter: { key: hasField.key },
-                  values: { interface: f.interface },
-                });
-              }
-            } catch (errField: any) {
-              this.app.logger?.warn?.(
-                `[PasswordRecovery] 注册字段 ${f.name} 提示: ${errField.message}`,
+              this.app.logger?.info?.(
+                `[PasswordRecovery] 已安全解除 'password_recovery_requests' 的 uiManageable 锁定`,
               );
+            } catch (uErr: any) {}
+          }
+
+          // 优先使用官方 db2cm 进行标准关联同步（仅在未注册时执行，绝不执行危险的 destroy）
+          if (!existingCol && typeof collectionsRepo.db2cm === 'function') {
+            try {
+              await collectionsRepo.db2cm('password_recovery_requests');
+              this.app.logger?.info?.(
+                `[PasswordRecovery] db2cm 自动同步 'password_recovery_requests' 到 Collection Manager 成功`,
+              );
+            } catch (db2cmErr: any) {
+              this.app.logger?.warn?.(`[PasswordRecovery] db2cm 自动同步提示: ${db2cmErr.message}`);
             }
           }
 
-          const finalCount = await fieldsRepo.count({
-            filter: { collectionName: 'password_recovery_requests' },
+          // 重新获取或创建 collection 记录
+          existingCol = await collectionsRepo.findOne({
+            filter: { name: 'password_recovery_requests' },
           });
 
-          this.app.logger?.info?.(
-            `[PasswordRecovery] 成功确保 'password_recovery_requests' 表就绪，当前 Collection Manager 注册字段数: ${finalCount} (本次补齐: ${addedCount})`,
-          );
+          if (!existingCol) {
+            existingCol = await collectionsRepo.create({
+              values: {
+                key: 'password_recovery_requests',
+                name: 'password_recovery_requests',
+                title: '密码找回请求',
+                inherit: 0,
+                hidden: 0,
+                options: {
+                  origin: '@nocobase/plugin-password-recovery',
+                  autoGenId: true,
+                  titleField: 'account',
+                  logging: true,
+                  createdAt: true,
+                  updatedAt: true,
+                  createdBy: false,
+                  updatedBy: false,
+                  uiManageable: false,
+                },
+              },
+            });
+          }
+
+          // 3. 字段级别强制核验与补齐（含主键 id 在内的 13 个关键字段）
+          if (fieldsRepo) {
+            const fieldList = [
+              {
+                name: 'id',
+                type: 'bigInt',
+                interface: 'integer',
+                title: 'ID',
+                uiSchema: { type: 'number', title: 'ID', 'x-component': 'InputNumber', 'x-read-pretty': true },
+              },
+              {
+                name: 'account',
+                type: 'string',
+                interface: 'input',
+                title: '请求账号',
+                uiSchema: { type: 'string', title: '请求账号', 'x-component': 'Input' },
+              },
+              {
+                name: 'code',
+                type: 'string',
+                interface: 'input',
+                title: '数字验证码',
+                uiSchema: { type: 'string', title: '数字验证码', 'x-component': 'Input' },
+              },
+              {
+                name: 'userId',
+                type: 'integer',
+                interface: 'integer',
+                title: '关联用户ID',
+                uiSchema: { type: 'number', title: '关联用户ID', 'x-component': 'InputNumber' },
+              },
+              {
+                name: 'username',
+                type: 'string',
+                interface: 'input',
+                title: '员工用户名',
+                uiSchema: { type: 'string', title: '员工用户名', 'x-component': 'Input' },
+              },
+              {
+                name: 'email',
+                type: 'string',
+                interface: 'email',
+                title: '企业邮箱',
+                uiSchema: { type: 'string', title: '企业邮箱', 'x-component': 'Input' },
+              },
+              {
+                name: 'phone',
+                type: 'string',
+                interface: 'phone',
+                title: '手机号',
+                uiSchema: { type: 'string', title: '手机号', 'x-component': 'Input' },
+              },
+              {
+                name: 'nickname',
+                type: 'string',
+                interface: 'input',
+                title: '员工姓名',
+                uiSchema: { type: 'string', title: '员工姓名', 'x-component': 'Input' },
+              },
+              {
+                name: 'status',
+                type: 'string',
+                interface: 'select',
+                title: '请求状态',
+                uiSchema: {
+                  type: 'string',
+                  title: '请求状态',
+                  'x-component': 'Select',
+                  enum: [
+                    { label: '待核验', value: 'pending' },
+                    { label: '已重置', value: 'used' },
+                    { label: '已过期', value: 'expired' },
+                    { label: '模拟测试', value: 'test' },
+                  ],
+                },
+              },
+              {
+                name: 'expiresInMinutes',
+                type: 'integer',
+                interface: 'integer',
+                title: '有效分钟数',
+                uiSchema: { type: 'number', title: '有效分钟数', 'x-component': 'InputNumber' },
+              },
+              {
+                name: 'expiresAt',
+                type: 'date',
+                interface: 'datetime',
+                title: '失效时间',
+                uiSchema: { type: 'datetime', title: '失效时间', 'x-component': 'DatePicker' },
+              },
+              {
+                name: 'token',
+                type: 'string',
+                interface: 'input',
+                title: '会话Token',
+                uiSchema: { type: 'string', title: '会话Token', 'x-component': 'Input' },
+              },
+              {
+                name: 'ip',
+                type: 'string',
+                interface: 'input',
+                title: '客户端IP',
+                uiSchema: { type: 'string', title: '客户端IP', 'x-component': 'Input' },
+              },
+            ];
+
+            let addedCount = 0;
+            for (let i = 0; i < fieldList.length; i++) {
+              const f = fieldList[i];
+              try {
+                const hasField = await fieldsRepo.findOne({
+                  filter: {
+                    collectionName: 'password_recovery_requests',
+                    name: f.name,
+                  },
+                });
+
+                if (!hasField) {
+                  const randomKey = `prr_${f.name}_${Math.random().toString(36).substring(2, 9)}`;
+                  await fieldsRepo.create({
+                    values: {
+                      key: randomKey,
+                      name: f.name,
+                      type: f.type,
+                      interface: f.interface,
+                      collectionName: 'password_recovery_requests',
+                      sort: i + 1,
+                      uiSchema: f.uiSchema,
+                      options: {
+                        uiSchema: f.uiSchema,
+                        title: f.title,
+                      },
+                    },
+                  });
+                  addedCount++;
+                } else {
+                  // 原地无损补齐 interface 与 uiSchema
+                  const updateValues: any = {};
+                  if (!hasField.interface && f.interface) {
+                    updateValues.interface = f.interface;
+                  }
+                  if (!hasField.uiSchema && f.uiSchema) {
+                    updateValues.uiSchema = f.uiSchema;
+                  }
+                  if (Object.keys(updateValues).length > 0) {
+                    await fieldsRepo.update({
+                      filter: { key: hasField.key },
+                      values: updateValues,
+                    });
+                  }
+                }
+              } catch (errField: any) {
+                this.app.logger?.warn?.(
+                  `[PasswordRecovery] 注册字段 ${f.name} 提示: ${errField.message}`,
+                );
+              }
+            }
+
+            const finalCount = await fieldsRepo.count({
+              filter: { collectionName: 'password_recovery_requests' },
+            });
+
+            this.app.logger?.info?.(
+              `[PasswordRecovery] 成功确保 'password_recovery_requests' 表就绪，当前 Collection Manager 注册字段数: ${finalCount} (本次补齐: ${addedCount})`,
+            );
+          }
         }
-      }
     } catch (err: any) {
       this.app.logger?.error?.(`[PasswordRecovery] 表初始化与字段自愈异常: ${err.message}`);
     }
@@ -398,6 +480,29 @@ export class PluginPasswordRecoveryServer extends Plugin {
               ip: String(ctx.ip || '127.0.0.1'),
             },
           });
+
+          // 若配置了 workflowKey，双重触发确保普通工作流也能接收到完整数据
+          try {
+            const configRepo = ctx.db.getRepository('password_recovery_configs');
+            const cfg = await configRepo?.findOne?.({ filter: { key: 'default' } });
+            if (cfg?.workflowKey) {
+              const workflowPlugin: any = ctx.app.getPlugin('@nocobase/plugin-workflow');
+              if (workflowPlugin) {
+                const workflowRepo = ctx.db.getRepository('workflows');
+                const targetWf = await workflowRepo.findOne({
+                  filter: {
+                    $or: [{ key: String(cfg.workflowKey) }, { id: String(cfg.workflowKey) }],
+                    enabled: true,
+                  },
+                });
+                if (targetWf && typeof workflowPlugin.trigger === 'function') {
+                  await workflowPlugin.trigger(targetWf, {
+                    data: testRecord?.toJSON ? testRecord.toJSON() : testRecord,
+                  });
+                }
+              }
+            }
+          } catch (wfErr: any) {}
 
           ctx.body = {
             success: true,

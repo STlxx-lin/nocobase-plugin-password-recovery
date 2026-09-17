@@ -3,11 +3,27 @@ import { defineCollection } from '@nocobase/database';
 export default defineCollection({
   name: 'password_recovery_requests',
   title: '密码找回请求',
-  uiManageable: true,
+  shared: true,
+  dataCategory: 'business',
   filterTargetKey: 'id',
   autoGenId: true,
   timestamps: true,
   fields: [
+    {
+      type: 'bigInt',
+      name: 'id',
+      interface: 'integer',
+      primaryKey: true,
+      autoIncrement: true,
+      allowNull: false,
+      comment: '请求主键ID',
+      uiSchema: {
+        type: 'number',
+        title: 'ID',
+        'x-component': 'InputNumber',
+        'x-read-pretty': true,
+      },
+    },
     {
       type: 'string',
       name: 'account',
